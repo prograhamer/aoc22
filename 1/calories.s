@@ -77,6 +77,10 @@ loop:
 	cmpl 8(%rsp), %ecx
 	jle loop
 
+
+   // r14 = # of best counts output
+   xor %r14, %r14
+
 findbest:
 	// find the greediest boi
 	// ax = best index, dx = best calories
@@ -178,6 +182,17 @@ done:
 	movq $calstr, %rsi
 	movq $calstr_len, %rdx
 	syscall
+
+   xor %rax, %rax
+   movl (%rsp), %eax
+   shl $2, %eax
+   mov %rsp, %rbx
+   sub %rax, %rbx
+   movl $0, (%rbx)
+
+   incq %r14
+   cmp $3, %r14
+   jne findbest
 
 	jmp exit
 
