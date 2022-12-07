@@ -1,10 +1,8 @@
+.include "../lib/readfile.s"
+
 .data
 filename:
    .string "rocks.real"
-init_buf_size:
-   .long 100
-buf_grow_size:
-   .long 100
 result_fmt_str:
    .string "total strategy value = %d\n"
 
@@ -15,6 +13,9 @@ _start:
    // %rsp -> file contents buffer
    subq $8, %rsp
 
+   movq $filename, %rdi
+   movq $1024, %rsi
+   movq $2048, %rdx
    call _readfile
 
    cmpq $-1, %rax
@@ -41,117 +42,6 @@ err:
    movq $60, %rax
    movq $1, %rdi
    syscall
-
-.globl _readfile
-// _readfile() -> char *
-_readfile:
-   push %rbp
-   // %rsp -> allocated buffer
-   // %rsp+8 -> fd
-   // %rsp+16 -> read length
-   subq $20, %rsp
-   movq %rsp, %rbp
-
-   xor %rdi, %rdi
-   movl init_buf_size, %edi
-   call malloc
-
-   test %rax, %rax
-   je _readfile_err
-
-   movq %rax, (%rsp)
-
-   // open the file with syscall 2 = open
-   movq $2, %rax
-   movq $filename, %rdi
-   movq $filename, %rdi
-   // 0 flags
-   xor %rsi, %rsi
-   // 0 mode
-   xor %rdx, %rdx
-   syscall
-
-   cmp $0, %rax
-   jle _readfile_err
-
-   movq %rax, 0x8(%rsp)
-
-   // read the file with syscall 0 = read
-   movq $0, %rax
-   movq 0x8(%rsp), %rdi
-   movq (%rsp), %rsi
-   xor %rdx, %rdx
-   movl init_buf_size, %edx
-   syscall
-
-   // save bytes read
-   movl %eax, 0x10(%rsp)
-
-   // check if we need to read more
-   cmp init_buf_size, %eax
-   je _readfile_alloc_and_read
-
-   // close the file handle with syscall 3 = close
-   movq $3, %rax
-   movq 0x8(%rsp), %rdi
-   syscall
-
-   test %rax, %rax
-   jne _readfile_err
-
-   je _readfile_null
-
-_readfile_alloc_and_read:
-   // first allocate buf_grow_size more bytes
-   movq (%rsp), %rdi
-   xor %rsi, %rsi
-   movl 0x10(%rsp), %esi
-   addl buf_grow_size, %esi
-   call realloc
-
-   // if failed, bail
-   test %rax, %rax
-   je _readfile_err
-
-   // save the new pointer
-   movq %rax, (%rsp)
-
-   // read into base pointer, plus read bytes offset
-   movq $0, %rax
-   movq 0x8(%rsp), %rdi
-   movq (%rsp), %rsi
-   xor %rcx, %rcx
-   movl 0x10(%rsp), %ecx
-   leaq (%rsi, %rcx, 1), %rsi
-   xor %rdx, %rdx
-   movl buf_grow_size, %edx
-   syscall
-
-   // add to read bytes
-   addl %eax, 0x10(%rsp)
-
-   // if there's more to read, keep going
-   cmp buf_grow_size, %eax
-   je _readfile_alloc_and_read
-
-_readfile_null:
-   xor %rcx, %rcx
-   movl 0x10(%rsp), %ecx
-   movq (%rsp), %rax
-   leaq (%rax, %rcx, 1), %rax
-   movb $0, (%rax)
-
-_readfile_ret:
-   // return the pointer
-   movq (%rsp), %rax
-
-   // flop the stack
-   addq $20, %rsp
-   pop %rbp
-   ret
-_readfile_err:
-   movq $-1, %rax
-   jmp _readfile_ret
 
 .globl _evaluate
 // _evaluate(buf) -> int
@@ -184,7 +74,6 @@ _evaluate_again:
    cmpb $0, (%rbx)
    jne _evaluate_again
 
-   xor %rax, %rax
    movl 8(%rsp), %eax
 
    addq $12, %rsp
