@@ -30,6 +30,9 @@ _start:
    xor %rax, %rax
    call printf
 
+   movq (%rsp), %rdi
+   call free
+
    movq $60, %rax
    movq $0, %rdi
    syscall
@@ -101,7 +104,8 @@ _readfile:
 _readfile_alloc_and_read:
    // first allocate buf_grow_size more bytes
    movq (%rsp), %rdi
-   movq %rcx, %rsi
+   xor %rsi, %rsi
+   movl 0x10(%rsp), %esi
    addl buf_grow_size, %esi
    call realloc
 
