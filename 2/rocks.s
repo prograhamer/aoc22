@@ -1,8 +1,6 @@
 .data
 filename:
    .string "rocks.real"
-filename_end:
-   .equ filename_len, filename_end - filename
 init_buf_size:
    .long 100
 buf_grow_size:
