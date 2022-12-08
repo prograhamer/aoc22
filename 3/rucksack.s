@@ -53,7 +53,6 @@ _evaluate:
    // 0x10(%rsp)(0x4) -> sum of priorities
    subq $0x14, %rsp
 
-   movq %rdi, (%rsp)
    movl $0, 0x10(%rsp)
 
 find_new_line:
@@ -65,6 +64,7 @@ evaluate_lf_loop:
    jmp evaluate_lf_loop
 
 found_new_line:
+   movq %rdi, (%rsp)
    movq %rcx, 0x8(%rsp)
    movq %rcx, %rsi
    call _line_priority
@@ -76,7 +76,6 @@ found_new_line:
    movq (%rsp), %rdi
    addq 0x8(%rsp), %rdi
    inc %rdi
-   movq %rdi, (%rsp)
    cmpb $0, (%rdi)
    jne find_new_line
 
