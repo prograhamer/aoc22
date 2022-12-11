@@ -7,8 +7,8 @@ result_fmt_str:
    .string "sum of priorities = %d\n"
 
 .text
-.globl _start
-_start:
+.globl main
+main:
    movq %rsp, %rbp
    // %rsp -> file contents buffer
    subq $8, %rsp

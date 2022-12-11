@@ -6,12 +6,12 @@ result_fmt_str:
    .string "redundant assignments = %d\n"
 
 .text
-.globl _start
-_start:
+.globl main
+main:
 	push %rbp
 	mov %rsp, %rbp
    // %rsp -> file contents buffer
-   subq $8, %rsp
+   subq $0x10, %rsp
 
    movq $filename, %rdi
    movq $1024, %rsi
@@ -50,7 +50,7 @@ _evaluate:
    // (%rsp)(0x8)     -> buffer pointer
    // 0x8(%rsp)(0x8)  -> newline index
    // 0x10(%rsp)(0x4) -> count of pairs
-   subq $0x14, %rsp
+   subq $0x20, %rsp
 
    movl $0, 0x10(%rsp)
 
@@ -80,7 +80,7 @@ found_new_line:
 
    movl 0x10(%rsp), %eax
 
-   addq $0x14, %rsp
+   addq $0x20, %rsp
    ret
 
 .global _line_redundant
@@ -153,7 +153,7 @@ done:
 // call with %rdi=string, %sil=char returns int in %eax, updated counter in %rcx
 _find_char_and_atoi:
    // (%rsp) -> counter
-   subq $8, %rsp
+   subq $0x10, %rsp
 
    xor %rcx, %rcx
 find_char_loop:
@@ -170,5 +170,5 @@ char_found:
    call atoi
    movq (%rsp), %rcx
 
-   addq $8, %rsp
+   addq $0x10, %rsp
    ret

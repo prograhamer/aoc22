@@ -9,7 +9,7 @@ _readfile:
    // 0x14(%rsp)(0x4) -> init_buf_size
    // 0x18(%rsp)(0x4) -> buf_grow_size
    // 0x1c(%rsp)(0x8) -> filename
-   subq $0x28, %rsp
+   subq $0x30, %rsp
 
    mov %rdi, 0x1c(%rsp)
    mov %esi, 0x14(%rsp)
@@ -101,7 +101,7 @@ _readfile_null:
    movq (%rsp), %rax
 _readfile_ret:
    // flop the stack
-   addq $0x28, %rsp
+	movq %rbp, %rsp
    pop %rbp
    ret
 _readfile_err_close_free:

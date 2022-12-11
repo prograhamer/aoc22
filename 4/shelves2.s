@@ -4,11 +4,11 @@
 filename:
    .string "shelves.test"
 result_fmt_str:
-   .string "redudant assignments = %d\n"
+   .string "redundant assignments = %d\n"
 
 .text
-.globl _start
-_start:
+.globl main
+main:
    // %rsp -> file contents buffer
    subq $8, %rsp
 
