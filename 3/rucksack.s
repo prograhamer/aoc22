@@ -18,7 +18,7 @@ _start:
    movq $2048, %rdx
    call _readfile
 
-   cmpq $-1, %rax
+   cmpq $0, %rax
    je err
 
    movq %rax, (%rsp)

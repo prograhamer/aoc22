@@ -2,7 +2,7 @@
 
 .data
 filename:
-   .string "rocks.real"
+   .string "rocks.test"
 result_fmt_str:
    .string "total strategy value = %d\n"
 
@@ -18,7 +18,7 @@ _start:
    movq $2048, %rdx
    call _readfile
 
-   cmpq $-1, %rax
+   cmpq $0, %rax
    je err
 
    movq %rax, (%rsp)

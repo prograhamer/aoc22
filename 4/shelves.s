@@ -1,14 +1,15 @@
 .include "../lib/readfile.s"
-
 .data
 filename:
-   .string "shelves.real"
+   .string "shelves.test"
 result_fmt_str:
-   .string "redudant assignments = %d\n"
+   .string "redundant assignments = %d\n"
 
 .text
 .globl _start
 _start:
+	push %rbp
+	mov %rsp, %rbp
    // %rsp -> file contents buffer
    subq $8, %rsp
 
@@ -17,7 +18,7 @@ _start:
    movq $2048, %rdx
    call _readfile
 
-   cmpq $-1, %rax
+   cmpq $0, %rax
    je err
 
    movq %rax, (%rsp)

@@ -2,22 +2,21 @@
 // _readfile(char *filename, int init_buf_size, int buf_grow_size) -> char *
 _readfile:
    push %rbp
-   // %rsp(q) -> allocated buffer
-   // %rsp+8(q) -> fd
-   // %rsp+16(w) -> read length
-   // %rsp+20(w) -> init_buf_size
-   // %rsp+24(w) -> buf_grow_size
-   // %rsp+28(q) -> filename
-   subq $36, %rsp
    movq %rsp, %rbp
+   // (%rsp)(0x8) -> allocated buffer
+   // 0x8(%rsp)(0x8) -> fd
+   // 0x10(%rsp)(0x4) -> read length
+   // 0x14(%rsp)(0x4) -> init_buf_size
+   // 0x18(%rsp)(0x4) -> buf_grow_size
+   // 0x1c(%rsp)(0x8) -> filename
+   subq $0x28, %rsp
 
-   mov %rdi, 28(%rsp)
-   mov %esi, 20(%rsp)
-   mov %edx, 24(%rsp)
+   mov %rdi, 0x1c(%rsp)
+   mov %esi, 0x14(%rsp)
+   mov %edx, 0x18(%rsp)
 
    mov %rsi, %rdi
    call malloc
-
    test %rax, %rax
    je _readfile_err
 
@@ -25,7 +24,7 @@ _readfile:
 
    // open the file with syscall 2 = open
    movq $2, %rax
-   movq 28(%rsp), %rdi
+   movq 0x1c(%rsp), %rdi
    // 0 flags
    xor %rsi, %rsi
    // 0 mode
@@ -41,36 +40,28 @@ _readfile:
    movq $0, %rax
    movq 0x8(%rsp), %rdi
    movq (%rsp), %rsi
-   movl 20(%rsp), %edx
+   movl 0x14(%rsp), %edx
    syscall
 
    // save bytes read
    movl %eax, 0x10(%rsp)
 
    // check if we need to read more
-   cmp 20(%rsp), %eax
+   cmp 0x14(%rsp), %eax
    je _readfile_alloc_and_read
 
-   // close the file handle with syscall 3 = close
-   movq $3, %rax
-   movq 0x8(%rsp), %rdi
-   syscall
-
-   test %rax, %rax
-   jne _readfile_err
-
-   je _readfile_null
+   jmp _readfile_close
 
 _readfile_alloc_and_read:
    // first allocate buf_grow_size more bytes
    movq (%rsp), %rdi
    movl 0x10(%rsp), %esi
-   addl 24(%rsp), %esi
+   addl 0x18(%rsp), %esi
    call realloc
 
    // if failed, bail
    test %rax, %rax
-   je _readfile_err
+   je _readfile_err_close_free
 
    // save the new pointer
    movq %rax, (%rsp)
@@ -91,20 +82,36 @@ _readfile_alloc_and_read:
    cmp 24(%rsp), %eax
    je _readfile_alloc_and_read
 
+_readfile_close:
+   // close the file handle with syscall 3 = close
+   movq $3, %rax
+   movq 0x8(%rsp), %rdi
+   syscall
+
+   test %rax, %rax
+   jne _readfile_err_free
+
 _readfile_null:
    movl 0x10(%rsp), %ecx
    movq (%rsp), %rax
    leaq (%rax, %rcx, 1), %rax
    movb $0, (%rax)
 
-_readfile_ret:
    // return the pointer
    movq (%rsp), %rax
-
+_readfile_ret:
    // flop the stack
-   addq $36, %rsp
+   addq $0x28, %rsp
    pop %rbp
    ret
+_readfile_err_close_free:
+   // close the file handle with syscall 3 = close
+   movq $3, %rax
+   movq 0x8(%rsp), %rdi
+   syscall
+_readfile_err_free:
+   movq (%rsp), %rdi
+   call free
 _readfile_err:
-   movq $-1, %rax
+   movq $0, %rax
    jmp _readfile_ret

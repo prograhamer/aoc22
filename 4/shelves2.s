@@ -2,7 +2,7 @@
 
 .data
 filename:
-   .string "shelves.real"
+   .string "shelves.test"
 result_fmt_str:
    .string "redudant assignments = %d\n"
 
@@ -17,7 +17,7 @@ _start:
    movq $2048, %rdx
    call _readfile
 
-   cmpq $-1, %rax
+   cmpq $0, %rax
    je err
 
    movq %rax, (%rsp)

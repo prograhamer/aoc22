@@ -1,6 +1,6 @@
 .data
 filename:
-	.string "calories.real"
+	.string "calories.test"
 bufsize:
 	.long 10465
 buf:
