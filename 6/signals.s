@@ -24,7 +24,15 @@ main:
 	movq %rax, %rdi
 	call process_part_1
 
-	leaq result_fmt_str(%rip), %rdi
+	leaq result_1_fmt_str(%rip), %rdi
+	movq %rax, %rsi
+	xor %rax, %rax
+	call printf
+
+	movq (%rsp), %rdi
+	call process_part_2
+
+	leaq result_2_fmt_str(%rip), %rdi
 	movq %rax, %rsi
 	xor %rax, %rax
 	call printf
@@ -51,8 +59,10 @@ invalid_args_str:
 	.string "invalid arguments, expected input filename"
 error_str:
 	.string "an error occurred :("
-result_fmt_str:
-	.string "marker @ %d\n"
+result_1_fmt_str:
+	.string "packet start marker @ %d\n"
+result_2_fmt_str:
+	.string "message start marker @ %d\n"
 
 process_part_1:
 	// %rcx -> string index
@@ -93,3 +103,33 @@ next3:
 	add $3, %rcx
 	jmp loop
 
+process_part_2:
+	// %rcx -> string index of start of sequence
+	xor %rcx, %rcx
+	xor %rsi, %rsi
+
+outer_loop:
+	// %rax -> index of character being tested against all others
+	leaq 13(%rcx), %rax
+inner_loop_rax:
+	// %sil -> character being tested
+	movb (%rdi, %rax, 1), %sil
+	// %rdx -> index of other character to be tested against one in %sil, initially char immediately before it
+	leaq -1(%rax), %rdx
+inner_loop_rdx:
+	cmpb (%rdi, %rdx, 1), %sil
+	je equal
+
+	dec %rdx
+	cmp %rcx, %rdx
+	jge inner_loop_rdx
+
+	dec %rax
+	cmp %rcx, %rax
+	jge inner_loop_rax
+
+	add $15, %rax
+	ret
+equal:
+	leaq 0x1(%rdx), %rcx
+	jmp outer_loop
