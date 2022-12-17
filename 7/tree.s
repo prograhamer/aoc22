@@ -5,7 +5,7 @@
 main:
 	push %rbp
 	mov %rsp, %rbp
-	// %rsp -> file contents buffer
+	// (%rsp)(0x8) -> file contents buffer
 	subq $0x10, %rsp
 
 	cmp $2, %rdi
@@ -79,7 +79,7 @@ process_part_1:
 	mov %rsp, %rbp
 	// (%rsp)(0x8)	      -> input string
 	// (0x8)(%rsp)(0x8)  -> root node
-	// (0x10)(%rsp)(0x4) -> offset
+	// (0x10)(%rsp)(0x4) -> result
 	subq $0x20, %rsp
 
 	movq %rdi, (%rsp)
@@ -95,12 +95,17 @@ process_part_1:
 	movq (%rsp), %rdi
 	xor %rsi, %rsi
 	call find_next_line
-	movl %eax, 0x10(%rsp)
 
 	leaq (%rdi, %rax, 1), %rdi
 	movq 0x8(%rsp), %rsi
 	call process_input
 
+	movq 0x8(%rsp), %rdi
+	movl $0, 0x10(%rsp)
+	leaq 0x10(%rsp), %rsi
+	call traverse_tree_lt_100_000
+
+	movl 0x10(%rsp), %eax
 process_part_1_ret:
 	mov %rbp, %rsp
 	pop %rbp
@@ -436,3 +441,51 @@ add_to_list_err:
 	mov $-1, %rax
 	jmp add_to_list_ret
 
+// traverse_tree_lt_100_000(void *node, int32 *result) -> int32
+traverse_tree_lt_100_000:
+	push %rbp
+	movq %rsp, %rbp
+	//     (%rsp)(0x8) -> void *entry
+	// 0x08(%rsp)(0x8) -> int32 *result
+	// 0x10(%rsp)(0x4) -> int32 this_node_size
+	// 0x14(%rsp)(0x4) -> int32 entry idnex
+	subq $0x20, %rsp
+
+	movq %rdi, (%rsp)
+	movq %rsi, 0x8(%rsp)
+	movl $0, 0x10(%rsp)
+
+	movl 0x64(%rdi), %eax
+	test %eax, %eax
+	je traverse_tree_lt_100_000_ret
+
+	xor %rcx, %rcx
+traverse_tree_lt_100_000_loop:
+	movq 0x68(%rdi, %rcx, 8), %rdi
+	cmpb $'f', (%rdi)
+	je traverse_tree_lt_100_000_file
+	movl %ecx, 0x14(%rsp)
+	call traverse_tree_lt_100_000
+	addl %eax, 0x10(%rsp)
+	movl 0x14(%rsp), %ecx
+	jmp traverse_tree_lt_100_000_next
+
+traverse_tree_lt_100_000_file:
+	movl 0x64(%rdi), %eax
+	addl %eax, 0x10(%rsp)
+traverse_tree_lt_100_000_next:
+	movq (%rsp), %rdi
+	movl 0x64(%rdi), %edx
+	incl %ecx
+	cmpl %edx, %ecx
+	jl traverse_tree_lt_100_000_loop
+
+	movl 0x10(%rsp), %eax
+	cmpl $100000, %eax
+	jg traverse_tree_lt_100_000_ret
+	movq 0x8(%rsp), %rdx
+	addl %eax, (%rdx)
+traverse_tree_lt_100_000_ret:
+	movq %rbp, %rsp
+	pop %rbp
+	ret
