@@ -1,4 +1,5 @@
 .include "../lib/readfile.s"
+.include "../lib/slice.s"
 
 .text
 .globl main
@@ -23,11 +24,20 @@ main:
 
 	movq %rax, %rdi
 	call process_part_1
-
 	cmp $-1, %rax
 	je err
 
 	leaq result_1_fmt_str(%rip), %rdi
+	movq %rax, %rsi
+	xor %rax, %rax
+	call printf
+
+	movq (%rsp), %rdi
+	call process_part_2
+	cmp $-1, %rax
+	je err
+
+	leaq result_2_fmt_str(%rip), %rdi
 	movq %rax, %rsi
 	xor %rax, %rax
 	call printf
@@ -56,28 +66,30 @@ error_str:
 	.string "an error occurred :("
 result_1_fmt_str:
 	.string "total file size = %d\n"
+result_2_fmt_str:
+	.string "best to delete = %d\n"
 root_node_name_str:
 	.string "/"
 file_scan_str:
 	.string "%u %s\n"
 
 // struct dir_entry:
-// type char            -> 'd'
-// name char[99]        -> 0x1(%ptr)
-// entry_count int32    -> 0x64(%ptr)
-// entries *entry[100]  -> 0x68(%ptr)
+// type char           -> 'd'
+// name char[99]       -> 0x1(%ptr)
+// entry_count int32   -> 0x64(%ptr)
+// entries *entry[100] -> 0x68(%ptr)
 // total size = 0x68 + 0x320 = 0x388
 
 // struct file_entry:
-// type char            -> 'f'
-// name char[99]        -> 0x1(%ptr)
-// size int32           -> 0x64(%ptr)
+// type char     -> 'f'
+// name char[99] -> 0x1(%ptr)
+// size int32    -> 0x64(%ptr)
 // total size = 0x64 + 0x4 = 0x68
 
 process_part_1:
 	push %rbp
 	mov %rsp, %rbp
-	// (%rsp)(0x8)	      -> input string
+	// (%rsp)(0x8)       -> input string
 	// (0x8)(%rsp)(0x8)  -> root node
 	// (0x10)(%rsp)(0x4) -> result
 	subq $0x20, %rsp
@@ -114,12 +126,65 @@ process_part_1_err:
 	movq $-1, %rax
 	jmp process_part_1_ret
 
+// struct directory size {
+// char directory_name[99] + pad ->     (%ptr)
+// int32 size                    -> 0x68(%ptr)
+// }
+// total_size = 0x68 + 0x4 = 0x6c -> 0x70 with padding
+
+// process_part_2(char *input)
+process_part_2:
+	push %rbp
+	mov %rsp, %rbp
+	//		 (%rsp)(0x8) -> input string
+	// 0x08(%rsp)(0x8) -> root node
+	// 0x10(%rsp)(0x8) -> directory size slice
+	subq $0x20, %rsp
+
+	movq %rdi, (%rsp)
+
+	movq $100, %rdi
+	call slice_init
+	test %rax, %rax
+	je process_part_2_err
+	movq %rax, 0x10(%rsp)
+
+	leaq root_node_name_str(%rip), %rdi
+	call alloc_dir_node
+	test %rax, %rax
+	je process_part_2_err
+	movq %rax, 0x8(%rsp)
+
+	// assume first line is `cd /`
+	// know that find_next_line doesn't modify %rdi
+	movq (%rsp), %rdi
+	xor %rsi, %rsi
+	call find_next_line
+
+	leaq (%rdi, %rax, 1), %rdi
+	movq 0x8(%rsp), %rsi
+	call process_input
+
+	movq 0x8(%rsp), %rdi
+	movq 0x10(%rsp), %rsi
+	call traverse_tree_populate_slice
+
+	movq 0x10(%rsp), %rdi
+	call find_best_to_delete
+
+process_part_2_ret:
+	mov %rbp, %rsp
+	pop %rbp
+	ret
+process_part_2_err:
+	movq $-1, %rax
+	jmp process_part_2_ret
 
 // process_input(char *remaining_input, void *current_node)
 process_input:
 	push %rbp
 	mov %rsp, %rbp
-	//     (%rsp)(0x8)  -> char *remaining_input
+	//		 (%rsp)(0x8)  -> char *remaining_input
 	// 0x08(%rsp)(0x8)  -> entry *current_node
 	// 0x10(%rsp)(0x4)  -> int32 input_index
 	// 0x14(%rsp)(0x4)  -> int32 next_entry_index
@@ -445,10 +510,10 @@ add_to_list_err:
 traverse_tree_lt_100_000:
 	push %rbp
 	movq %rsp, %rbp
-	//     (%rsp)(0x8) -> void *entry
+	//		 (%rsp)(0x8) -> void *node
 	// 0x08(%rsp)(0x8) -> int32 *result
 	// 0x10(%rsp)(0x4) -> int32 this_node_size
-	// 0x14(%rsp)(0x4) -> int32 entry idnex
+	// 0x14(%rsp)(0x4) -> int32 entry index
 	subq $0x20, %rsp
 
 	movq %rdi, (%rsp)
@@ -487,5 +552,187 @@ traverse_tree_lt_100_000_next:
 	addl %eax, (%rdx)
 traverse_tree_lt_100_000_ret:
 	movq %rbp, %rsp
+	pop %rbp
+	ret
+
+// traverse_tree_populate_slice(void *node, void *slice)
+traverse_tree_populate_slice:
+	push %rbp
+	mov %rsp, %rbp
+	//		 (%rsp)(0x8) -> void *node
+	// 0x08(%rsp)(0x8) -> void *result_slice
+	// 0x10(%rsp)(0x4) -> int32 this_node_size
+	// 0x14(%rsp)(0x4) -> int32 entry_index
+	subq $0x20, %rsp
+
+	movq %rdi, (%rsp)
+	movq %rsi, 0x8(%rsp)
+	movl $0, 0x10(%rsp)
+
+	movl 0x64(%rdi), %eax
+	test %eax, %eax
+	je traverse_tree_populate_slice_ret
+
+	xor %rcx, %rcx
+traverse_tree_populate_slice_loop:
+	movq 0x68(%rdi, %rcx, 8), %rdi
+	cmpb $'f', (%rdi)
+	je traverse_tree_populate_slice_file
+	movl %ecx, 0x14(%rsp)
+	movq 0x8(%rsp), %rsi
+	call traverse_tree_populate_slice
+	addl %eax, 0x10(%rsp)
+	movl 0x14(%rsp), %ecx
+	jmp traverse_tree_populate_slice_next
+
+traverse_tree_populate_slice_file:
+	movl 0x64(%rdi), %eax
+	addl %eax, 0x10(%rsp)
+traverse_tree_populate_slice_next:
+	movq (%rsp), %rdi
+	movl 0x64(%rdi), %edx
+	incl %ecx
+	cmpl %edx, %ecx
+	jl traverse_tree_populate_slice_loop
+
+	inc %rdi
+	movl 0x10(%rsp), %esi
+	call alloc_dir_size_struct
+	test %rax, %rax
+	je traverse_tree_populate_slice_err
+
+	movq 0x8(%rsp), %rdi
+	movq %rax, %rsi
+	call slice_add
+	movq 0x10(%rsp), %rax
+traverse_tree_populate_slice_ret:
+	mov %rbp, %rsp
+	pop %rbp
+	ret
+traverse_tree_populate_slice_err:
+	mov $-1, %rax
+	jmp traverse_tree_populate_slice_ret
+
+// alloc_dir_size_struct(char *name, int32 size) -> *struct dir_size
+alloc_dir_size_struct:
+	push %rbp
+	mov %rsp, %rbp
+	//     (%rsp)(0x8) -> char * name
+	// 0x08(%rsp)(0x4) -> int32 size
+	// 0x10(%rsp)(0x8) -> stuct dir_size *
+	subq $0x20, %rsp
+
+	movq %rdi, (%rsp)
+	movl %esi, 0x8(%rsp)
+
+	movq $0x70, %rdi
+	call malloc
+	test %rax, %rax
+	je alloc_dir_size_struct_ret
+	movq %rax, 0x10(%rsp)
+
+	movq %rax, %rdi
+	xor %rsi, %rsi
+	movq $0x70, %rdx
+	call memset
+
+	movq 0x10(%rsp), %rdi
+	movq (%rsp), %rsi
+	call strcpy
+
+	movq 0x10(%rsp), %rax
+	movl 0x8(%rsp), %edx
+	movl %edx, 0x68(%rax)
+alloc_dir_size_struct_ret:
+	mov %rbp, %rsp
+	pop %rbp
+	ret
+
+find_best_to_delete:
+	push %rbp
+	push %r12
+	push %r13
+	push %r14
+	push %r15
+	mov %rsp, %rbp
+	//     (%rsp)(0x8) -> slice pointer
+	// 0x08(%rsp)(0x4) -> current index
+	// 0x0c(%rsp)(0x4) -> target size
+	// 0x10(%rsp)(0x4) -> current best
+	subq $0x20, %rsp
+
+	movq %rdi, (%rsp)
+
+	movl $0, 0x8(%rsp)
+	// $r12 -> current index
+	xor %r12, %r12
+	// %r13 -> slice pointer
+	movq (%rsp), %r13
+find_root_loop:
+	movq %r13, %rdi
+	movl %r12d, %esi
+	call slice_get
+
+	// %r14 -> current dir_size entry
+	movq %rax, %r14
+
+	movq %r14, %rdi
+	leaq root_node_name_str(%rip), %rsi
+	call strcmp
+	test %rax, %rax
+	je find_root_found
+	incl %r12d
+	jmp find_root_loop
+
+find_root_found:
+	// $r12 -> index of root node
+	// $r13 -> slice pointer
+
+	// calculate target size
+	movl $70000000, %edx
+	movl 0x68(%r14), %eax
+	subl %eax, %edx
+	movl $30000000, %r15d
+	subl %edx, %r15d
+
+	// %r12d -> current index
+	// %r13  -> slice pointer
+	// %r14d -> current best size
+	// %r15d -> target size
+
+	// loop through all entries finding the one with the smallest positive
+	// directory size, where directory size >= target size
+	movl $-1, %r14d
+	xor %r12, %r12
+find_best_loop:
+	movq %r13, %rdi
+	movl %r12d, %esi
+	call slice_get
+
+	// %edx -> current size
+	movl 0x68(%rax), %edx
+
+	cmpl %edx, %r15d
+	jg find_best_loop_next
+
+	cmpl $-1, %r14d
+	je find_best_loop_init
+
+	cmpl %edx, %r14d
+	jle find_best_loop_next
+find_best_loop_init:
+	movl %edx, %r14d
+find_best_loop_next:
+	incl %r12d
+	cmpl %r12d, 0x4(%r13)
+	jg find_best_loop
+
+	movl %r14d, %eax
+
+	mov %rbp, %rsp
+	pop %r15
+	pop %r14
+	pop %r13
+	pop %r12
 	pop %rbp
 	ret
