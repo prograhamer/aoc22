@@ -22,7 +22,7 @@ main:
 	movq %rax, (%rsp)
 
 	movq %rax, %rdi
-	call process_part_1
+	call sum_signal_strengths
 	cmp $-1, %rax
 	je err
 
@@ -59,16 +59,6 @@ point_fmt:
 	.string "%c"
 point_fmt_nl:
 	.string "%c\n"
-
-process_part_1:
-	push %rbp
-	mov %rsp, %rbp
-
-	call sum_signal_strengths
-
-	mov %rbp, %rsp
-	pop %rbp
-	ret
 
 // sum_signal_strengths(char *input) -> int32
 sum_signal_strengths:
